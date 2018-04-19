@@ -42,7 +42,7 @@ public class DouyuClient extends DanMuClient {
         try {
             Socket socket = new Socket("openbarrage.douyutv.com", 8601);
             this.setDanMuSocket(new DouyuDanMuSocket(socket));
-            this.getDanMuSocket().communicate(String.format("type@=loginreq/roomid@=%s/", roomId));
+            this.getDanMuSocket().push(String.format("type@=loginreq/roomid@=%s/", roomId));
             this.getDanMuSocket().push(String.format("type@=joingroup/rid@=%s/gid@=-9999/", roomId));
         } catch (IOException e) {
             logger.error("create socket for douyu error", e);
@@ -60,11 +60,15 @@ public class DouyuClient extends DanMuClient {
         Thread danMuThread = new Thread(new Runnable() {
             @Override
             public void run() {
-                if (getDanmuWaitTime() != -1 && getDanmuWaitTime() < System.currentTimeMillis()) {
-                    logger.warn("No danmu received in {}", getDanmuWaitTime());
-                } else {
+                while (true){
                     logger.info("pull danmu : {}", getDanMuSocket().getDanmu());
-                    setDanmuWaitTime(System.currentTimeMillis() + getMaxNoDanMuWait());
+//                    if (getDanmuWaitTime() != -1 && getDanmuWaitTime() < System.currentTimeMillis()) {
+//                        logger.warn("No danmu received in {}", getDanmuWaitTime());
+//                        break;
+//                    } else {
+//                        logger.info("pull danmu : {}", getDanMuSocket().getDanmu());
+//                        setDanmuWaitTime(System.currentTimeMillis() + getMaxNoDanMuWait());
+//                    }
                 }
 
             }
@@ -90,7 +94,7 @@ public class DouyuClient extends DanMuClient {
     public void startService() {
         setLive(true);
         getDanmuThread().start();
-        getHeartThread().start();
+       // getHeartThread().start();
         setDanmuWaitTime(System.currentTimeMillis() + 20);
     }
 

@@ -1,15 +1,20 @@
 package com.silentgo.danmu.client.douyu;
 
 import cn.hutool.core.thread.ThreadUtil;
+import cn.hutool.core.util.ReUtil;
+import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONUtil;
 import com.silentgo.danmu.base.DanMuSocket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.net.Socket;
+import java.util.ArrayList;
+import java.util.List;
 
 public class DouyuDanMuSocket extends DanMuSocket {
-    public static final Logger looger = LoggerFactory.getLogger(DouyuDanMuSocket.class);
+    public static final Logger logger = LoggerFactory.getLogger(DouyuDanMuSocket.class);
 
     public DouyuDanMuSocket(Socket socket) {
         super(socket);
@@ -53,13 +58,13 @@ public class DouyuDanMuSocket extends DanMuSocket {
 
         } catch (IOException e) {
 
-            looger.error("send data error", e);
+            logger.error("send data error", e);
         } finally {
             try {
                 dataOutputStream.close();
                 byteArrayOutputStream.close();
             } catch (IOException e) {
-                looger.error("close steam error", e);
+                logger.error("close steam error", e);
             }
 
         }
@@ -73,19 +78,15 @@ public class DouyuDanMuSocket extends DanMuSocket {
             is = getSocket().getInputStream();
             br = new BufferedReader(new InputStreamReader(is));
             StringBuilder stringBuilder = new StringBuilder();
-            String info;
-            while ((info = br.readLine()) != null) {
-                stringBuilder.append(info);
+            boolean pre = false;
+            int rm;
+            while ((rm = br.read()) != -1) {
+                stringBuilder.append((char) rm);
             }
             return stringBuilder.toString();
         } catch (IOException e) {
-            looger.error("pull data error", e);
+            logger.error("pull data error", e);
         } finally {
-            try {
-                br.close();
-            } catch (IOException e) {
-                looger.error("close steam error", e);
-            }
 
         }
 
@@ -95,7 +96,18 @@ public class DouyuDanMuSocket extends DanMuSocket {
     @Override
     public String getDanmu() {
 
-        return this.pull();
+        String content = this.pull();
+
+        List<String> msgs = ReUtil.findAll("(type@=.*?)\\x00", content, 0, new ArrayList<>());
+        for (String msg : msgs) {
+            msg = msg.replace("@=", "\":\"").replace("/", "\",\"")
+                    .replace("@A", "@").replace("@S", "/");
+            JSONObject jsonObject = JSONUtil.parseObj("{" + msg.substring(0, msg.length() - 2) + "}");
+
+            logger.info("get msg:{}", jsonObject.toString());
+        }
+
+        return content;
     }
 
     @Override

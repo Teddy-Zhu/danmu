@@ -2,11 +2,16 @@ package com.silentgo.danmu.base;
 
 import cn.hutool.core.thread.ThreadUtil;
 import com.silentgo.danmu.client.douyu.DouyuDanMuSocket;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.LinkedList;
 import java.util.List;
 
 public abstract class DanMuClient {
+
+    public static final Logger logger = LoggerFactory.getLogger(DanMuClient.class);
+
     private String url;
     //单位s
     private int maxNoDanMuWait = 180;
@@ -31,25 +36,47 @@ public abstract class DanMuClient {
 
     public void start() {
         do {
+            try {
 
-            while (!deprecated) {
-                if (getLiveStatus()) break;
-                ThreadUtil.safeSleep(anchorStatusRescanTime);
+
+                while (!deprecated) {
+                    if (getLiveStatus()) break;
+                    ThreadUtil.safeSleep(anchorStatusRescanTime);
+                }
+                prepareEnv();
+
+                if (danMuSocket != null)
+                    danMuSocket.close();
+
+                danmuWaitTime = -1;
+                initSocket();
+
+                createThreadFn();
+
+                startService();
+
+            } catch (Exception e) {
+                logger.error("wait retry", e);
+                continue;
             }
-            prepareEnv();
-
-            if (danMuSocket != null)
-                danMuSocket.close();
-
-            danmuWaitTime = -1;
-            initSocket();
-
-            createThreadFn();
-
-            startService();
-
-
+            break;
         } while (!deprecated);
+
+        if (danmuThread != null) {
+            try {
+                danmuThread.join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+//        if (heartThread != null) {
+//            try {
+//                heartThread.join();
+//            } catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }
+//        }
     }
 
 
