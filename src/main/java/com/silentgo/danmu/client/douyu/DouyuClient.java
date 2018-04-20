@@ -1,20 +1,20 @@
 package com.silentgo.danmu.client.douyu;
 
-import cn.hutool.http.HttpUtil;
-import cn.hutool.json.JSONObject;
-import cn.hutool.json.JSONUtil;
 import com.silentgo.danmu.base.DanMuClient;
+import com.silentgo.danmu.netty.NettyClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.net.Socket;
 
 public class DouyuClient extends DanMuClient {
 
     public static final Logger logger = LoggerFactory.getLogger(DouyuClient.class);
 
     private String roomId;
+
+    public static final char[] douyuReceiveMark = new char[]{0xb1, 0x02, 0x00, 0x00};
+
+    public static final char[] douyuSendMark = new char[]{0xb1, 0x02, 0x00, 0x00};
+
 
     public DouyuClient(String url) {
         super(url);
@@ -23,7 +23,9 @@ public class DouyuClient extends DanMuClient {
     @Override
     public boolean getLiveStatus() {
 
+        logger.info("enter douyu live status");
         //room mark
+        /*
         String mark = getUrl().split("/")[3];
 
         String url = String.format("http://open.douyucdn.cn/api/RoomApi/room/%s", mark);
@@ -33,20 +35,20 @@ public class DouyuClient extends DanMuClient {
         }
 
         roomId = json.getJSONObject("data").getStr("room_id");
+        */
+        roomId = "4809";
+        logger.info("get room id:{}", roomId);
 
         return true;
     }
 
     @Override
     public void initSocket() {
-        try {
-            Socket socket = new Socket("openbarrage.douyutv.com", 8601);
-            this.setDanMuSocket(new DouyuDanMuSocket(socket));
-            this.getDanMuSocket().push(String.format("type@=loginreq/roomid@=%s/", roomId));
-            this.getDanMuSocket().push(String.format("type@=joingroup/rid@=%s/gid@=-9999/", roomId));
-        } catch (IOException e) {
-            logger.error("create socket for douyu error", e);
-        }
+        NettyClient nettyClient = new NettyClient("openbarrage.douyutv.com", 8601, douyuReceiveMark);
+        nettyClient.connect();
+        this.setDanMuSocket(new DouyuDanMuSocket(nettyClient));
+        this.getDanMuSocket().push(String.format("type@=loginreq/roomid@=%s/", roomId));
+        this.getDanMuSocket().push(String.format("type@=joingroup/rid@=%s/gid@=-9999/", roomId));
     }
 
     @Override
@@ -57,28 +59,11 @@ public class DouyuClient extends DanMuClient {
     @Override
     public void createThreadFn() {
 
-        Thread danMuThread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while (true){
-                    logger.info("pull danmu : {}", getDanMuSocket().getDanmu());
-//                    if (getDanmuWaitTime() != -1 && getDanmuWaitTime() < System.currentTimeMillis()) {
-//                        logger.warn("No danmu received in {}", getDanmuWaitTime());
-//                        break;
-//                    } else {
-//                        logger.info("pull danmu : {}", getDanMuSocket().getDanmu());
-//                        setDanmuWaitTime(System.currentTimeMillis() + getMaxNoDanMuWait());
-//                    }
-                }
-
-            }
-        });
-        danMuThread.setDaemon(true);
-        this.setDanmuThread(danMuThread);
-
         Thread heartThread = new Thread(new Runnable() {
             @Override
             public void run() {
+                logger.info("enter danmu client heart thread");
+
                 while (isLive() && !isDeprecated()) {
                     getDanMuSocket().keepAlive();
                 }
@@ -92,9 +77,9 @@ public class DouyuClient extends DanMuClient {
 
     @Override
     public void startService() {
+        logger.info("enter douyu client start service");
         setLive(true);
-        getDanmuThread().start();
-       // getHeartThread().start();
+        getHeartThread().start();
         setDanmuWaitTime(System.currentTimeMillis() + 20);
     }
 

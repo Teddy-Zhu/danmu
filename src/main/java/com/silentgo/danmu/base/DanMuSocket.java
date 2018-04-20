@@ -1,5 +1,6 @@
 package com.silentgo.danmu.base;
 
+import com.silentgo.danmu.netty.NettyClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -7,35 +8,29 @@ import java.io.IOException;
 import java.net.Socket;
 
 public abstract class DanMuSocket {
-    public static final Logger looger = LoggerFactory.getLogger(DanMuSocket.class);
+    public static final Logger logger = LoggerFactory.getLogger(DanMuSocket.class);
 
-    private Socket socket;
+    private NettyClient nettyClient;
 
-    public DanMuSocket(Socket socket) {
-        this.socket = socket;
+    public DanMuSocket(NettyClient nettyClient) {
+        this.nettyClient = nettyClient;
     }
-
-    public abstract String communicate(String data);
 
     public abstract void push(String data);
 
-    public abstract String pull();
-
-    public abstract String getDanmu();
+    public abstract void resolveMsg(String msg);
 
     public abstract void keepAlive();
 
     public void close() {
-        if (socket != null) {
-            try {
-                socket.close();
-            } catch (IOException e) {
-                looger.error("close socket error", e);
-            }
+        logger.info("enter close douyu socket  close");
+
+        if (nettyClient != null) {
+            nettyClient.close();
         }
     }
 
-    public Socket getSocket() {
-        return socket;
+    public NettyClient getNettyClient() {
+        return nettyClient;
     }
 }

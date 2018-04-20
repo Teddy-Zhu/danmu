@@ -27,7 +27,6 @@ public abstract class DanMuClient {
     private List<String> msgPipe = new LinkedList<>();
     private long danmuWaitTime = -1;
 
-    private Thread danmuThread;
     private Thread heartThread;
 
     public DanMuClient(String url) {
@@ -35,6 +34,8 @@ public abstract class DanMuClient {
     }
 
     public void start() {
+        logger.info("enter danmu client start");
+
         do {
             try {
 
@@ -62,21 +63,13 @@ public abstract class DanMuClient {
             break;
         } while (!deprecated);
 
-        if (danmuThread != null) {
+        if (heartThread != null) {
             try {
-                danmuThread.join();
+                heartThread.join();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
         }
-
-//        if (heartThread != null) {
-//            try {
-//                heartThread.join();
-//            } catch (InterruptedException e) {
-//                e.printStackTrace();
-//            }
-//        }
     }
 
 
@@ -104,14 +97,6 @@ public abstract class DanMuClient {
 
     public String getUrl() {
         return url;
-    }
-
-    public Thread getDanmuThread() {
-        return danmuThread;
-    }
-
-    public void setDanmuThread(Thread danmuThread) {
-        this.danmuThread = danmuThread;
     }
 
     public Thread getHeartThread() {

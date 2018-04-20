@@ -1,64 +1,114 @@
 package com.silentgo.danmu.netty;
 
 import io.netty.bootstrap.Bootstrap;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
-import io.netty.handler.codec.bytes.ByteArrayEncoder;
-import io.netty.handler.codec.string.StringEncoder;
-import io.netty.handler.stream.ChunkedWriteHandler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.net.InetSocketAddress;
 import java.nio.charset.Charset;
 
+
 public class NettyClient {
-    private final String host;
-    private final int port;
 
-    public NettyClient() {
-        this(0);
-    }
+    private static final Logger logger = LoggerFactory.getLogger(NettyClient.class);
 
-    public NettyClient(int port) {
-        this("localhost", port);
-    }
+    private String host;
+    private int port;
+    private String charset = "utf-8";
+    private ChannelFuture future;
+    private ByteBuf delimiter;
 
-    public NettyClient(String host, int port) {
+    private EventLoopGroup workerGroup;
+
+    private NettyMsgResolver msgResolver;
+
+    public NettyClient(String host, int port, byte[] delimiter) {
         this.host = host;
         this.port = port;
+        this.delimiter = Unpooled.copiedBuffer(delimiter);
     }
 
-    public void start() throws Exception {
-        EventLoopGroup group = new NioEventLoopGroup();
+    public NettyClient(String host, int port, char[] delimiter) {
+        this.host = host;
+        this.port = port;
+        this.delimiter = Unpooled.copiedBuffer(delimiter, Charset.forName(charset));
+    }
+
+    public NettyClient(String host, int port, byte[] delimiter, NettyMsgResolver msgResolver) {
+        this.host = host;
+        this.port = port;
+        this.delimiter = Unpooled.copiedBuffer(delimiter);
+        this.msgResolver = msgResolver;
+    }
+
+    public void connect() {
+        logger.info("enter netty connect");
+
+        workerGroup = new NioEventLoopGroup();
         try {
-            Bootstrap b = new Bootstrap();
-            b.group(group) // 注册线程池
-                    .channel(NioSocketChannel.class) // 使用NioSocketChannel来作为连接用的channel类
-                    .remoteAddress(new InetSocketAddress(this.host, this.port)) // 绑定连接端口和host信息
-                    .handler(new ChannelInitializer<SocketChannel>() { // 绑定连接初始化器
-                        @Override
-                        protected void initChannel(SocketChannel ch) throws Exception {
-                            System.out.println("正在连接中...");
-                            ch.pipeline().addLast(new StringEncoder(Charset.forName("UTF-8")));
-                            ch.pipeline().addLast(new EchoServerHandler());
-                            ch.pipeline().addLast(new ByteArrayEncoder());
-                            ch.pipeline().addLast(new ChunkedWriteHandler());
+            Bootstrap bootstrap = new Bootstrap();
+            bootstrap.group(workerGroup);
+            bootstrap.channel(NioSocketChannel.class);
+            bootstrap.option(ChannelOption.SO_KEEPALIVE, false);
+            bootstrap.handler(new NettyClientInitializer(this));
+            future = bootstrap.connect(host, port).sync();
 
-                        }
-                    });
-            // System.out.println("服务端连接成功..");
-
-            ChannelFuture cf = b.connect().sync(); // 异步连接服务器
-            System.out.println("服务端连接成功..."); // 连接完成
-
-           // cf.channel().closeFuture().sync(); // 异步等待关闭连接channel
-           // System.out.println("连接已关闭.."); // 关闭完成
-
-        } finally {
-            group.shutdownGracefully().sync(); // 释放线程池资源
+        } catch (Exception e) {
+            workerGroup.shutdownGracefully();
         }
+    }
+
+
+    public String getCharset() {
+        return charset;
+    }
+
+
+    public void close() {
+        try {
+            future.addListener(ChannelFutureListener.CLOSE);
+        } finally {
+            workerGroup.shutdownGracefully();
+        }
+    }
+
+
+    public void write(byte[] bytes) {
+        logger.info("enter netty write byte");
+
+        future.channel().writeAndFlush(bytes);
+    }
+
+    public void write(String text) {
+        logger.info("enter netty write text");
+
+        future = future.channel().writeAndFlush(text);
+    }
+
+    public String getHost() {
+        return host;
+    }
+
+    public int getPort() {
+        return port;
+    }
+
+    public ByteBuf getDelimiter() {
+        return delimiter;
+    }
+
+    public NettyMsgResolver getMsgResolver() {
+        return msgResolver;
+    }
+
+    public void setMsgResolver(NettyMsgResolver msgResolver) {
+        this.msgResolver = msgResolver;
     }
 }
