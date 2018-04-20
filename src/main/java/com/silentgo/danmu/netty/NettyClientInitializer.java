@@ -1,37 +1,26 @@
 package com.silentgo.danmu.netty;
 
-import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.socket.SocketChannel;
-import io.netty.handler.codec.DelimiterBasedFrameDecoder;
-import io.netty.handler.codec.string.StringDecoder;
-import io.netty.handler.codec.string.StringEncoder;
 
-import java.nio.charset.Charset;
+import java.util.List;
 
 public class NettyClientInitializer extends ChannelInitializer<SocketChannel> {
-    private StringDecoder DECODER;
-    private StringEncoder ENCODER;
+    List<ChannelHandler> channelHandlers;
 
-    private ByteBuf byteBuf;
-
-    private NettyClientHandler CLIENT_HANDLER;
 
     public NettyClientInitializer(NettyClient nettyClient) {
-        this.DECODER = new StringDecoder(Charset.forName(nettyClient.getCharset()));
-        this.ENCODER = new StringEncoder(Charset.forName(nettyClient.getCharset()));
-        this.CLIENT_HANDLER = new NettyClientHandler(nettyClient);
-        this.byteBuf = nettyClient.getDelimiter();
+        this.channelHandlers = nettyClient.getChannelHandlers();
     }
 
     @Override
     public void initChannel(SocketChannel ch) {
-        ChannelPipeline pipeline = ch.pipeline();
 
-        pipeline.addLast(new DelimiterBasedFrameDecoder(1000, this.byteBuf));
-        pipeline.addLast(DECODER);
-        pipeline.addLast(ENCODER);
-        pipeline.addLast(CLIENT_HANDLER);
+        ChannelPipeline pipeline = ch.pipeline();
+        for (ChannelHandler channelHandler : channelHandlers) {
+            pipeline.addLast(channelHandler);
+        }
     }
 }

@@ -1,18 +1,17 @@
 package com.silentgo.danmu.netty;
 
 import io.netty.bootstrap.Bootstrap;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelFutureListener;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.EventLoopGroup;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.handler.codec.string.StringDecoder;
+import io.netty.handler.codec.string.StringEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.List;
 
 
 public class NettyClient {
@@ -23,29 +22,13 @@ public class NettyClient {
     private int port;
     private String charset = "utf-8";
     private ChannelFuture future;
-    private ByteBuf delimiter;
-
     private EventLoopGroup workerGroup;
 
-    private NettyMsgResolver msgResolver;
+    private List<ChannelHandler> channelHandlers = new ArrayList<>();
 
-    public NettyClient(String host, int port, byte[] delimiter) {
+    public NettyClient(String host, int port) {
         this.host = host;
         this.port = port;
-        this.delimiter = Unpooled.copiedBuffer(delimiter);
-    }
-
-    public NettyClient(String host, int port, char[] delimiter) {
-        this.host = host;
-        this.port = port;
-        this.delimiter = Unpooled.copiedBuffer(delimiter, Charset.forName(charset));
-    }
-
-    public NettyClient(String host, int port, byte[] delimiter, NettyMsgResolver msgResolver) {
-        this.host = host;
-        this.port = port;
-        this.delimiter = Unpooled.copiedBuffer(delimiter);
-        this.msgResolver = msgResolver;
     }
 
     public void connect() {
@@ -56,10 +39,13 @@ public class NettyClient {
             Bootstrap bootstrap = new Bootstrap();
             bootstrap.group(workerGroup);
             bootstrap.channel(NioSocketChannel.class);
-            bootstrap.option(ChannelOption.SO_KEEPALIVE, false);
+            bootstrap.option(ChannelOption.TCP_NODELAY, true);
+            bootstrap.option(ChannelOption.SO_KEEPALIVE, true);
+
             bootstrap.handler(new NettyClientInitializer(this));
             future = bootstrap.connect(host, port).sync();
 
+            future.channel().closeFuture().sync();
         } catch (Exception e) {
             workerGroup.shutdownGracefully();
         }
@@ -70,6 +56,10 @@ public class NettyClient {
         return charset;
     }
 
+
+    public boolean isAlive() {
+        return future.channel().isActive();
+    }
 
     public void close() {
         try {
@@ -100,15 +90,8 @@ public class NettyClient {
         return port;
     }
 
-    public ByteBuf getDelimiter() {
-        return delimiter;
-    }
 
-    public NettyMsgResolver getMsgResolver() {
-        return msgResolver;
-    }
-
-    public void setMsgResolver(NettyMsgResolver msgResolver) {
-        this.msgResolver = msgResolver;
+    public List<ChannelHandler> getChannelHandlers() {
+        return channelHandlers;
     }
 }

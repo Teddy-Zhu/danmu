@@ -1,87 +1,93 @@
 package com.silentgo.danmu.client.douyu;
 
+import cn.hutool.http.HttpUtil;
+import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONUtil;
+import com.silentgo.danmu.base.BaseMsg;
 import com.silentgo.danmu.base.DanMuClient;
+import com.silentgo.danmu.client.douyu.model.DouyuBaseMsg;
+import com.silentgo.danmu.client.douyu.model.msg.ChatMsg;
+import com.silentgo.danmu.client.douyu.model.msg.DgbMsg;
+import com.silentgo.danmu.client.douyu.model.msg.SpbcMsg;
+import com.silentgo.danmu.client.douyu.model.msg.UenterMsg;
 import com.silentgo.danmu.netty.NettyClient;
+import io.netty.channel.ChannelHandler;
+import io.netty.handler.timeout.IdleStateHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class DouyuClient extends DanMuClient {
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+
+public class DouyuClient implements DanMuClient {
 
     public static final Logger logger = LoggerFactory.getLogger(DouyuClient.class);
 
     private String roomId;
 
-    public static final char[] douyuReceiveMark = new char[]{0xb1, 0x02, 0x00, 0x00};
+    private NettyClient nettyClient;
 
-    public static final char[] douyuSendMark = new char[]{0xb1, 0x02, 0x00, 0x00};
-
+    //斗鱼官方心跳要求45
+    private static final long heartBeatInterval = 40 * 1000;
 
     public DouyuClient(String url) {
-        super(url);
-    }
+        String mark = url.split("/")[3];
 
-    @Override
-    public boolean getLiveStatus() {
-
-        logger.info("enter douyu live status");
-        //room mark
-        /*
-        String mark = getUrl().split("/")[3];
-
-        String url = String.format("http://open.douyucdn.cn/api/RoomApi/room/%s", mark);
-        JSONObject json = JSONUtil.parseObj(HttpUtil.get(url));
+        String roomUrl = String.format("http://open.douyucdn.cn/api/RoomApi/room/%s", mark);
+        JSONObject json = JSONUtil.parseObj(HttpUtil.get(roomUrl));
         if (json.getInt("error") != 0 || !"1".equals(json.getJSONObject("data").getStr("room_status"))) {
-            return false;
+
+            return;
         }
 
         roomId = json.getJSONObject("data").getStr("room_id");
-        */
-        roomId = "4809";
         logger.info("get room id:{}", roomId);
 
-        return true;
+    }
+
+    public String getRoomId() {
+        return roomId;
     }
 
     @Override
-    public void initSocket() {
-        NettyClient nettyClient = new NettyClient("openbarrage.douyutv.com", 8601, douyuReceiveMark);
+    public void init() {
+        nettyClient = new NettyClient("openbarrage.douyutv.com", 8601);
+
+        List<ChannelHandler> channelHandlerList = nettyClient.getChannelHandlers();
+        channelHandlerList.add(new DouyuMsgDecoder());
+        channelHandlerList.add(new DouyuMsgEncoder());
+        channelHandlerList.add(new DouyuSimpleHandler(this));
+        channelHandlerList.add(new IdleStateHandler(0, 20, 0, TimeUnit.SECONDS));
+        channelHandlerList.add(new DouyuIdleStateHandler());
+
+
+    }
+
+    @Override
+    public void start() {
         nettyClient.connect();
-        this.setDanMuSocket(new DouyuDanMuSocket(nettyClient));
-        this.getDanMuSocket().push(String.format("type@=loginreq/roomid@=%s/", roomId));
-        this.getDanMuSocket().push(String.format("type@=joingroup/rid@=%s/gid@=-9999/", roomId));
     }
 
     @Override
-    public void prepareEnv() {
-
+    public void resolveMsg(BaseMsg msg) {
+        DouyuBaseMsg douyuBaseMsg = (DouyuBaseMsg) msg;
+        String type = douyuBaseMsg.getType();
+        switch (type) {
+            case "chatmsg":
+                logger.info(new ChatMsg(douyuBaseMsg).toString());
+                break;
+            case "dgb":
+                logger.info(new DgbMsg(douyuBaseMsg).toString());
+                break;
+            case "uenter":
+                logger.info(new UenterMsg(douyuBaseMsg).toString());
+                break;
+            case "spbc":
+                logger.info(new SpbcMsg(douyuBaseMsg).toString());
+                break;
+            default:
+                logger.info("othertype:" + douyuBaseMsg.getContent());
+                break;
+        }
     }
-
-    @Override
-    public void createThreadFn() {
-
-        Thread heartThread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                logger.info("enter danmu client heart thread");
-
-                while (isLive() && !isDeprecated()) {
-                    getDanMuSocket().keepAlive();
-                }
-            }
-        });
-        heartThread.setDaemon(true);
-
-        this.setHeartThread(heartThread);
-    }
-
-
-    @Override
-    public void startService() {
-        logger.info("enter douyu client start service");
-        setLive(true);
-        getHeartThread().start();
-        setDanmuWaitTime(System.currentTimeMillis() + 20);
-    }
-
-
 }
