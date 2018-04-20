@@ -1,5 +1,6 @@
 package com.silentgo.danmu.client.douyu;
 
+import cn.hutool.core.thread.ThreadUtil;
 import cn.hutool.http.HttpUtil;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
@@ -12,12 +13,10 @@ import com.silentgo.danmu.client.douyu.model.msg.SpbcMsg;
 import com.silentgo.danmu.client.douyu.model.msg.UenterMsg;
 import com.silentgo.danmu.netty.NettyClient;
 import io.netty.channel.ChannelHandler;
-import io.netty.handler.timeout.IdleStateHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 public class DouyuClient implements DanMuClient {
 
@@ -57,15 +56,25 @@ public class DouyuClient implements DanMuClient {
         channelHandlerList.add(new DouyuMsgDecoder());
         channelHandlerList.add(new DouyuMsgEncoder());
         channelHandlerList.add(new DouyuSimpleHandler(this));
-        channelHandlerList.add(new IdleStateHandler(0, 20, 0, TimeUnit.SECONDS));
-        channelHandlerList.add(new DouyuIdleStateHandler());
+//        channelHandlerList.add(new IdleStateHandler(0, 20, 0, TimeUnit.SECONDS));
+//        channelHandlerList.add(new DouyuIdleStateHandler());
 
 
     }
 
     @Override
     public void start() {
-        nettyClient.connect();
+        nettyClient.connect(new Runnable() {
+            @Override
+            public void run() {
+                while (nettyClient.isAlive()) {
+                    logger.info("send douyu heart beat msg");
+                    String hearttext = "type@=mrkl/";
+                    nettyClient.write(hearttext);
+                    ThreadUtil.safeSleep(heartBeatInterval);
+                }
+            }
+        });
     }
 
     @Override

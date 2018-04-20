@@ -30,7 +30,6 @@ public class DouyuSimpleHandler extends SimpleChannelInboundHandler<String> {
                 break;
             case "qausrespond":
 
-            case "error":
                 logger.info("send douyu heart beat msg");
                 String hearttext = "type@=mrkl/";
                 channelHandlerContext.writeAndFlush(hearttext);

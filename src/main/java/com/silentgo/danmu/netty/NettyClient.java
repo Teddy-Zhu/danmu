@@ -4,14 +4,12 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
-import io.netty.handler.codec.string.StringDecoder;
-import io.netty.handler.codec.string.StringEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
 
 
 public class NettyClient {
@@ -31,7 +29,7 @@ public class NettyClient {
         this.port = port;
     }
 
-    public void connect() {
+    public void connect(Runnable runnable) {
         logger.info("enter netty connect");
 
         workerGroup = new NioEventLoopGroup();
@@ -44,6 +42,10 @@ public class NettyClient {
 
             bootstrap.handler(new NettyClientInitializer(this));
             future = bootstrap.connect(host, port).sync();
+
+            if (runnable != null) {
+                new Thread(runnable).start();
+            }
 
             future.channel().closeFuture().sync();
         } catch (Exception e) {
