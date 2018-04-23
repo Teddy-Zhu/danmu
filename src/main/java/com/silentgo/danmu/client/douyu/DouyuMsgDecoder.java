@@ -58,4 +58,10 @@ public class DouyuMsgDecoder extends ByteToMessageDecoder {
         return ByteBuffer.wrap(bys).order(ByteOrder.LITTLE_ENDIAN).getInt();
     }
 
+    public static void main(String[] args) {
+        byte[] aaa = new byte[]{0x00, 0x00, 0x03, 0x38};
+
+        System.out.println(ntohl(aaa));
+    }
+
 }
