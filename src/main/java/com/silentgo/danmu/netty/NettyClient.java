@@ -1,64 +1,99 @@
 package com.silentgo.danmu.netty;
 
 import io.netty.bootstrap.Bootstrap;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.EventLoopGroup;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
-import io.netty.handler.codec.bytes.ByteArrayEncoder;
-import io.netty.handler.codec.string.StringEncoder;
-import io.netty.handler.stream.ChunkedWriteHandler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.net.InetSocketAddress;
-import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
+
 
 public class NettyClient {
-    private final String host;
-    private final int port;
 
-    public NettyClient() {
-        this(0);
-    }
+    private static final Logger logger = LoggerFactory.getLogger(NettyClient.class);
 
-    public NettyClient(int port) {
-        this("localhost", port);
-    }
+    private String host;
+    private int port;
+    private String charset = "utf-8";
+    private ChannelFuture future;
+    private EventLoopGroup workerGroup;
+
+    private List<ChannelHandler> channelHandlers = new ArrayList<>();
 
     public NettyClient(String host, int port) {
         this.host = host;
         this.port = port;
     }
 
-    public void start() throws Exception {
-        EventLoopGroup group = new NioEventLoopGroup();
+    public void connect(Runnable runnable) {
+        logger.info("enter netty connect");
+
+        workerGroup = new NioEventLoopGroup();
         try {
-            Bootstrap b = new Bootstrap();
-            b.group(group) // 注册线程池
-                    .channel(NioSocketChannel.class) // 使用NioSocketChannel来作为连接用的channel类
-                    .remoteAddress(new InetSocketAddress(this.host, this.port)) // 绑定连接端口和host信息
-                    .handler(new ChannelInitializer<SocketChannel>() { // 绑定连接初始化器
-                        @Override
-                        protected void initChannel(SocketChannel ch) throws Exception {
-                            System.out.println("正在连接中...");
-                            ch.pipeline().addLast(new StringEncoder(Charset.forName("UTF-8")));
-                            ch.pipeline().addLast(new EchoServerHandler());
-                            ch.pipeline().addLast(new ByteArrayEncoder());
-                            ch.pipeline().addLast(new ChunkedWriteHandler());
+            Bootstrap bootstrap = new Bootstrap();
+            bootstrap.group(workerGroup);
+            bootstrap.channel(NioSocketChannel.class);
+            bootstrap.option(ChannelOption.TCP_NODELAY, true);
+            bootstrap.option(ChannelOption.SO_KEEPALIVE, true);
 
-                        }
-                    });
-            // System.out.println("服务端连接成功..");
+            bootstrap.handler(new NettyClientInitializer(this));
+            future = bootstrap.connect(host, port).sync();
 
-            ChannelFuture cf = b.connect().sync(); // 异步连接服务器
-            System.out.println("服务端连接成功..."); // 连接完成
+            if (runnable != null) {
+                new Thread(runnable).start();
+            }
 
-           // cf.channel().closeFuture().sync(); // 异步等待关闭连接channel
-           // System.out.println("连接已关闭.."); // 关闭完成
-
-        } finally {
-            group.shutdownGracefully().sync(); // 释放线程池资源
+            future.channel().closeFuture().sync();
+        } catch (Exception e) {
+            workerGroup.shutdownGracefully();
         }
+    }
+
+
+    public String getCharset() {
+        return charset;
+    }
+
+
+    public boolean isAlive() {
+        return future.channel().isActive();
+    }
+
+    public void close() {
+        try {
+            future.addListener(ChannelFutureListener.CLOSE);
+        } finally {
+            workerGroup.shutdownGracefully();
+        }
+    }
+
+
+    public void write(byte[] bytes) {
+        logger.info("enter netty write byte");
+
+        future.channel().writeAndFlush(bytes);
+    }
+
+    public void write(String text) {
+        logger.info("enter netty write text");
+
+        future = future.channel().writeAndFlush(text);
+    }
+
+    public String getHost() {
+        return host;
+    }
+
+    public int getPort() {
+        return port;
+    }
+
+
+    public List<ChannelHandler> getChannelHandlers() {
+        return channelHandlers;
     }
 }
